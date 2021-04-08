@@ -1,0 +1,27 @@
+# {{ ansible_managed }}
+[server]
+hostname = {{ rhsm_server_hostname }}
+prefix = {{ rhsm_server_prefix }}
+port = {{ rhsm_rhsm_port }}
+insecure = {{ rhsm_insecure | int }}
+ssl_verify_depth = {{ rhsm_ssl_verify_depth }}
+
+[rhsm]
+baseurl = {{ rhsm_baseurl }}
+ca_cert_dir = {{ rhsm_ca_cert_dir }}
+repo_ca_cert = {{ rhsm_repo_ca_cert }}
+productCertDir = {{ rhsm_product_cert_dir }}
+entitlementCertDir = {{ rhsm_entitlement_cert_dir }}
+consumerCertDir = {{ rhsm_consumer_cert_dir }}
+manage_repos = {{ rhsm_manage_repos | int }}
+full_refresh_on_yum = {{ rhsm_full_refresh_on_yum | int }}
+report_package_profile = {{ rhsm_report_package_profile | int }}
+pluginDir = {{ rhsm_plugin_dir }}
+pluginConfDir = {{ rhsm_plugin_conf_dir }}
+
+[rhsmcertd]
+certCheckInterval = {{ rhsm_cert_check_interval }}
+autoAttachInterval = {{ rhsm_auto_attach_interval }}
+
+[logging]
+default_log_level = {{ rhsm_logging.default }}

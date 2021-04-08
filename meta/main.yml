@@ -1,0 +1,5 @@
+---
+galaxy_info:
+  author: Philip Gaw
+  description: Ansible Role to subscribe to Redhat Satellite
+  version: 1.0.0

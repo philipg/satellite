@@ -1,0 +1,98 @@
+- name: Configure Red Hat Subscription Manager
+  template:
+    src: rhsm.conf.j2
+    dest: /etc/rhsm/rhsm.conf
+    owner: root
+    group: root
+    mode: 0644
+  tags:
+    - rhsm
+    - rhsm_conf
+
+- name: Block to set rhsm_package_manager_config_file
+  when:
+    - rhsm_rhsm_proxy_hostname is defined
+  tags:
+    - rhsm
+    - rhsm_conf
+  block:
+    - name: Set rhsm_package_manager_config_file for yum
+      set_fact:
+        rhsm_package_manager_config_file: /etc/yum.conf
+      when:
+        - ansible_facts['pkg_mgr'] == 'yum'
+    - name: Set rhsm_package_manager_config_file for dnf
+      set_fact:
+        rhsm_package_manager_config_file: /etc/dnf/dnf.conf
+      when:
+        - ansible_facts['pkg_mgr'] == 'dnf'
+
+
+- name: SATELLITE | Gather service facts
+  service_facts:
+
+- name: SATELLITE | Set list of services as a fact
+  set_fact:
+    service_list: "{{ services.keys() | list | replace('.service', '') }}"
+
+- name: SATELLITE | Gather package facts
+  package_facts:
+
+- name: SATELLITE | Start and enable rhsmcertsd
+  service:
+    name: rhsmcertd
+    state: started
+    enabled: yes
+  when: "'rhsmcertd' in service_list"
+
+
+- name: Configure yum plugins
+  ini_file:
+    path: /etc/yum/pluginconf.d/{{ item.file }}
+    section: "{{ item.section | default('main') }}"
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+  loop: "{{ rhsm_yum_plugins }}"
+
+- name: SATELLITE 6 | Install katello-ca-consumer
+  yum:
+    name: "{{ rhsm_satellite_url }}/pub/katello-ca-consumer-latest.noarch.rpm"
+    state: present
+    validate_certs: no
+    disable_gpg_check: yes
+  register: katello_rpm
+
+# This script is provided by katello-ca-consumer and takes care of deploying
+# the katello certificates and prepare the config in RHSM.
+- name: SATELLITE 6 | Execute katello-rhsm-consumer
+  shell: katello-rhsm-consumer
+  when: katello_rpm.changed
+
+- name: Manage Red Hat subscription
+  redhat_subscription:
+    username: "{{ rhsm_username | default(omit) }}"
+    password: "{{ rhsm_password | default(omit) }}"
+    activationkey: "{{ rhsm_activation_key | default(omit) }}"
+    org_id: "{{ rhsm_org_id | default(omit) }}"
+    release: "{{ rhsm_release | default(omit) }}"
+    pool_ids: "{{ rhsm_pool_ids | default(omit) }}"
+    state: "{{ rhsm_state | default(omit) }}"
+    autosubscribe: "{{ rhsm_autosubscribe | default(omit) }}"
+    consumer_name: "{{ rhsm_consumer_hostname | default(omit) }}"
+    force_register: "{{ rhsm_force_register | default(omit) }}"
+    rhsm_baseurl: "{{ rhsm_baseurl | default(omit) }}"
+    server_proxy_hostname: "{{ rhsm_rhsm_proxy_hostname | default(omit) }}"
+    server_proxy_port: "{{ rhsm_rhsm_proxy_port | default(omit) }}"
+    server_proxy_user: "{{ rhsm_rhsm_proxy_user | default(omit) }}"
+    server_proxy_password: "{{ rhsm_rhsm_proxy_password | default(omit) }}"
+  register: subscrition_result
+  tags:
+    - rhsm
+    - rhsm_register
+  # Workaround for https://bugzilla.redhat.com/show_bug.cgi?id=1715958
+  # A regression in Satellite added a delay to the registration to happen.
+  # To counter this problem we retry 5 times with a delay of 10 seconds between
+  # retries.
+  retries: 5
+  delay: 10
+  until: not subscrition_result.failed
